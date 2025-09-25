@@ -1,0 +1,16 @@
+{
+  "name": "water-pollution-monitoring-app",
+  "version": "1.0.0",
+  "description": "绿水青山污水检测系统",
+  "main": "index.html",
+  "scripts": {
+    "start": "http-server -p 8081",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": ["water", "pollution", "monitoring", "map"],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "http-server": "^14.1.1"
+  }
+}

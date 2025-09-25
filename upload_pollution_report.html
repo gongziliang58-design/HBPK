@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>环保拍客 - 上传污染报告</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#165DFF',
+                        'pollution-light': '#FBBF24'
+                    }
+                },
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+        }
+    </style>
+</head>
+<body class="min-h-screen bg-gray-50 flex flex-col">
+    <header class="bg-white shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+            <div class="flex items-center">
+                <i class="fa fa-tint text-primary text-2xl mr-2"></i>
+                <h1 class="text-xl font-bold text-gray-800">环保拍客</h1>
+                <p class="text-sm text-gray-500">污染源全民监督共同治理</p>
+            </div>
+        </div>
+    </header>
+    
+    <main class="flex-1 max-w-4xl mx-auto px-4 py-8">
+        <div class="bg-white rounded-xl shadow-md p-6 mb-8">
+            <h2 class="text-xl font-semibold text-gray-800 mb-6">上传重庆市南岸区南滨路附近污水照片</h2>
+            
+            <div class="mb-8">
+                <img src="pollution_sample1.jpg" alt="污水照片预览" class="w-full h-auto rounded-lg shadow-sm">
+            <p class="text-sm text-gray-500 mt-2 text-center">污水照片预览：用户提供的污染情况图片 - 河水中漂浮着塑料瓶，有白色泡沫，水质浑浊</p>
+            </div>
+            
+            <form id="quick-upload-form" class="space-y-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">位置</label>
+                        <input type="text" id="location" value="重庆市南岸区南滨路附近" 
+                            class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">污染级别</label>
+                        <div class="flex items-center space-x-3">
+                            <label class="cursor-pointer flex items-center">
+                                <input type="radio" name="level" value="beautiful" class="hidden">
+                                <span class="w-4 h-4 rounded-full border border-gray-300 inline-block mr-2"></span>
+                                <span>环境优美</span>
+                            </label>
+                            <label class="cursor-pointer flex items-center">
+                                <input type="radio" name="level" value="light" class="hidden" checked>
+                                <span class="w-4 h-4 rounded-full border border-gray-300 inline-block mr-2 bg-pollution-light"></span>
+                                <span class="text-pollution-light">轻度污染</span>
+                            </label>
+                            <label class="cursor-pointer flex items-center">
+                                <input type="radio" name="level" value="medium" class="hidden">
+                                <span class="w-4 h-4 rounded-full border border-gray-300 inline-block mr-2"></span>
+                                <span>中度污染</span>
+                            </label>
+                            <label class="cursor-pointer flex items-center">
+                                <input type="radio" name="level" value="heavy" class="hidden">
+                                <span class="w-4 h-4 rounded-full border border-gray-300 inline-block mr-2"></span>
+                                <span>重度污染</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">污染情况描述</label>
+                    <textarea id="description" rows="3" 
+                        class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none">
+观察到重庆市南岸区南滨路附近河水呈灰绿色，水面漂浮着塑料瓶等垃圾，有白色泡沫产生，水质浑浊，有轻微异味。水中可见小鱼游动，但数量较少。河岸有少量绿色藻类生长。
+                    </textarea>
+                </div>
+                
+                <div class="pt-4">
+                    <button type="button" id="upload-btn" class="w-full bg-primary hover:bg-primary/90 text-white font-medium py-3 px-4 rounded-lg transition-smooth flex items-center justify-center">
+                        <i class="fa fa-upload mr-2"></i>
+                        模拟上传污染报告
+                    </button>
+                </div>
+            </form>
+        </div>
+        
+        <div class="bg-blue-50 rounded-lg p-4 border border-blue-100">
+            <h3 class="text-lg font-medium text-blue-800 mb-2">使用说明</h3>
+            <ol class="list-decimal list-inside space-y-2 text-gray-700">
+                <li>点击"模拟上传污染报告"按钮，脚本将自动在主应用中添加一条新的污染记录</li>
+                <li>上传后，您可以在主应用的地图上看到新增的蓝色标记点（表示轻度污染）</li>
+                <li>位置已预设为"重庆市南岸区南滨路附近"，污染级别设为"轻度污染"</li>
+                <li>如果需要修改信息，可以直接编辑表单中的内容后再上传</li>
+            </ol>
+        </div>
+    </main>
+    
+    <footer class="bg-white shadow-inner mt-auto py-4">
+        <div class="max-w-7xl mx-auto px-4 text-center text-gray-500 text-sm">
+            <p>绿水青山就是金山银山 - 保护水环境，人人有责</p>
+        </div>
+    </footer>
+    
+    <script>
+        document.getElementById('upload-btn').addEventListener('click', function() {
+            // 显示上传中状态
+            this.disabled = true;
+            this.innerHTML = '<i class="fa fa-spinner fa-spin mr-2"></i> 上传中...';
+            
+            // 收集表单数据
+            const location = document.getElementById('location').value;
+            const level = document.querySelector('input[name="level"]:checked').value;
+            const description = document.getElementById('description').value;
+            
+            // 模拟上传过程
+            setTimeout(() => {
+                // 尝试在主应用中添加数据
+                try {
+                    // 创建模拟数据
+                    const newPollutionData = {
+                        id: Date.now(),
+                        title: "重庆市南岸区南滨路污水",
+                        location: {
+                            // 重庆市南岸区南滨路附近的大致坐标
+                            lat: 29.5315,
+                            lng: 106.5887
+                        },
+                        address: location,
+                        level: level,
+                        description: description,
+                        // 使用示例图片作为污水照片
+                        image: "pollution_sample1.jpg",
+                        time: new Date().toLocaleString('zh-CN', {
+                            year: 'numeric',
+                            month: '2-digit',
+                            day: '2-digit',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                        }).replace(/\//g, '-'),
+                        reporter: "环保志愿者"
+                    };
+                    
+                    // 存储到localStorage供主应用使用
+                    localStorage.setItem('newPollutionData', JSON.stringify(newPollutionData));
+                    
+                    // 显示成功消息
+                    alert('污染报告上传成功！\n\n请打开主应用查看新增的污染点标记。\n坐标：' + newPollutionData.location.lat + ', ' + newPollutionData.location.lng);
+                    
+                    // 恢复按钮状态
+                    this.disabled = false;
+                    this.innerHTML = '<i class="fa fa-upload mr-2"></i> 模拟上传污染报告';
+                    
+                    // 可以选择跳转到主页面
+                    // window.location.href = 'index.html';
+                    
+                } catch (error) {
+                    console.error('上传失败:', error);
+                    alert('上传失败，请手动在主应用中添加污染报告。\n\n错误信息：' + error.message);
+                    
+                    // 恢复按钮状态
+                    this.disabled = false;
+                    this.innerHTML = '<i class="fa fa-upload mr-2"></i> 模拟上传污染报告';
+                }
+            }, 1500);
+        });
+    </script>
+</body>
+</html>

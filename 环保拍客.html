@@ -1,0 +1,1710 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>环保拍客</title>
+  <!-- 引入外部资源 -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+  <!-- 引入百度地图API（这里使用演示AK，实际使用时请申请自己的AK） -->
+  <script type="text/javascript" src="https://api.map.baidu.com/api?v=3.0&ak=E4805d16520de693a3fe707cdc962045"></script>
+  
+  <!-- 配置Tailwind自定义主题 -->
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#165DFF',
+            secondary: '#36B37E',
+            light: '#F5F7FA',
+            dark: '#1D2129',
+            pollution: {
+              light: '#FFC107',
+              medium: '#FF9800',
+              heavy: '#F5222D'
+            }
+          },
+          fontFamily: {
+            inter: ['Inter', 'system-ui', 'sans-serif'],
+          },
+        },
+      }
+    }
+  </script>
+  
+  <!-- 自定义工具类 -->
+  <style type="text/tailwindcss">
+    @layer utilities {
+      .content-auto {
+        content-visibility: auto;
+      }
+      .shadow-soft {
+        box-shadow: 0 2px 15px rgba(0, 0, 0, 0.05);
+      }
+      .transition-smooth {
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+    }
+  </style>
+  
+  <style>
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      overflow-x: hidden;
+    }
+    
+    #map-container {
+      height: calc(100vh - 64px - 60px);
+      width: 100%;
+      z-index: 10;
+      margin-top: 60px;
+    }
+    
+    .marker-pulse {
+      animation: pulse 2s infinite;
+    }
+    
+    @keyframes pulse {
+      0% {
+        transform: scale(0.95);
+        box-shadow: 0 0 0 0 rgba(245, 34, 45, 0.7);
+      }
+      
+      70% {
+        transform: scale(1);
+        box-shadow: 0 0 0 10px rgba(245, 34, 45, 0);
+      }
+      
+      100% {
+        transform: scale(0.95);
+        box-shadow: 0 0 0 0 rgba(245, 34, 45, 0);
+      }
+    }
+    
+    /* 平滑滚动 */
+    html {
+      scroll-behavior: smooth;
+    }
+    
+    /* 加载动画 */
+    .loader {
+      border-top-color: #165DFF;
+      animation: spinner 0.6s linear infinite;
+    }
+    
+    @keyframes spinner {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+
+<body class="bg-light text-dark">
+  <!-- 顶部导航栏 -->
+  <header class="bg-white shadow-md fixed top-0 left-0 right-0 z-50 transition-smooth">
+    <div class="container mx-auto px-4">
+      <div class="flex items-center justify-between h-16">
+        <!-- Logo和标题 -->
+        <div class="flex items-center space-x-2">
+          <i class="fa fa-tint text-primary text-2xl"></i>
+          <h1 class="text-xl font-bold text-primary">环保拍客</h1>
+          <p class="text-sm text-gray-500">污染源全民监督共同治理</p>
+        </div>
+        
+        <!-- 导航链接 - 桌面版 -->
+        <nav class="hidden md:flex items-center space-x-8">
+          <a href="#" class="font-medium text-primary border-b-2 border-primary py-5">首页</a>
+          <a href="#" class="font-medium text-gray-600 hover:text-primary transition-smooth py-5">数据统计</a>
+          <a href="#" class="font-medium text-gray-600 hover:text-primary transition-smooth py-5">关于我们</a>
+          <a href="#" class="font-medium text-gray-600 hover:text-primary transition-smooth py-5">帮助中心</a>
+        </nav>
+        
+        <!-- 操作按钮 -->
+        <div class="flex items-center space-x-4">
+          <button id="report-btn" class="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-lg transition-smooth flex items-center">
+            <i class="fa fa-plus-circle mr-2"></i>
+            <span>上报污染</span>
+          </button>
+          
+          <!-- 移动端菜单按钮 -->
+          <button id="mobile-menu-btn" class="md:hidden text-gray-600 hover:text-primary">
+            <i class="fa fa-bars text-xl"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+    
+    <!-- 移动端导航菜单 -->
+    <div id="mobile-menu" class="md:hidden hidden bg-white border-t">
+      <div class="container mx-auto px-4 py-3 space-y-3">
+        <a href="#" class="block py-2 font-medium text-primary">首页</a>
+        <a href="#" class="block py-2 font-medium text-gray-600 hover:text-primary transition-smooth">数据统计</a>
+        <a href="#" class="block py-2 font-medium text-gray-600 hover:text-primary transition-smooth">关于我们</a>
+        <a href="#" class="block py-2 font-medium text-gray-600 hover:text-primary transition-smooth">帮助中心</a>
+      </div>
+    </div>
+    </header>
+    
+    <!-- 搜索和过滤栏 -->
+    <div id="search-filter-bar" class="bg-white shadow-md px-4 py-3 fixed top-16 left-0 right-0 z-40 transition-smooth">
+      <div class="container mx-auto">
+        <div class="flex flex-col md:flex-row gap-4">
+          <div class="relative flex-grow">
+            <input type="text" id="search-input" placeholder="搜索位置、污染点..." 
+              class="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none transition-smooth">
+            <i class="fa fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <button id="filter-all" class="px-3 py-2 rounded-lg bg-primary text-white transition-smooth hover:bg-primary/90">
+              全部
+            </button>
+            <button id="filter-beautiful" class="px-3 py-2 rounded-lg bg-green-100 text-green-800 transition-smooth hover:bg-green-200">
+              环境优美
+            </button>
+            <button id="filter-light" class="px-3 py-2 rounded-lg bg-yellow-100 text-yellow-800 transition-smooth hover:bg-yellow-200">
+              轻度污染
+            </button>
+            <button id="filter-medium" class="px-3 py-2 rounded-lg bg-orange-100 text-orange-800 transition-smooth hover:bg-orange-200">
+              中度污染
+            </button>
+            <button id="filter-heavy" class="px-3 py-2 rounded-lg bg-red-100 text-red-800 transition-smooth hover:bg-red-200">
+              重度污染
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  <!-- 主内容区 -->
+  <main class="pt-16">
+    <!-- 地图容器 -->
+    <div id="map-container" class="relative"></div>
+    
+    <!-- 图例 -->
+    <div id="legend" class="absolute top-[140px] right-4 w-56 bg-white rounded-xl shadow-soft p-4 z-20">
+      <h3 class="font-bold text-sm text-gray-700 mb-3">污染级别图例</h3>
+      <div class="space-y-3">
+        <div class="flex items-center">
+          <div class="w-5 h-5 rounded-full bg-green-500 mr-3"></div>
+          <span class="text-xs text-gray-600">环境优美</span>
+        </div>
+        <div class="flex items-center">
+          <div class="w-5 h-5 rounded-full bg-yellow-400 mr-3"></div>
+          <span class="text-xs text-gray-600">轻度污染</span>
+        </div>
+        <div class="flex items-center">
+          <div class="w-5 h-5 rounded-full bg-orange-500 mr-3"></div>
+          <span class="text-xs text-gray-600">中度污染</span>
+        </div>
+        <div class="flex items-center">
+          <div class="w-5 h-5 rounded-full bg-red-500 mr-3"></div>
+          <span class="text-xs text-gray-600">重度污染</span>
+        </div>
+        <div class="flex items-center">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" class="mr-3">
+            <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" fill="#FFD700" stroke="#FFA500" stroke-width="1"/>
+          </svg>
+          <span class="text-xs text-gray-600">您的位置</span>
+        </div>
+      </div>
+    </div>
+    
+    <!-- 浮动信息面板 -->
+    <div id="info-panel" class="absolute top-[160px] right-4 w-72 bg-white rounded-xl shadow-soft p-4 z-20 transform transition-smooth translate-x-full">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="font-bold text-lg">附近污染点</h2>
+        <button id="close-panel" class="text-gray-500 hover:text-gray-700">
+          <i class="fa fa-times"></i>
+        </button>
+      </div>
+      
+      <div id="pollution-list" class="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
+        <!-- 污染点列表将通过JS动态生成 -->
+        <div class="animate-pulse">
+          <div class="h-4 bg-gray-200 rounded mb-2"></div>
+          <div class="h-3 bg-gray-200 rounded w-3/4"></div>
+        </div>
+      </div>
+      
+      <button id="show-panel" class="absolute -left-4 top-1/2 transform -translate-y-1/2 bg-white p-2 rounded-full shadow-soft text-primary hover:bg-gray-50 transition-smooth hidden">
+        <i class="fa fa-chevron-left"></i>
+      </button>
+    </div>
+    
+    <!-- 显示面板按钮 -->
+    <button id="toggle-panel" class="absolute top-4 right-4 bg-white p-3 rounded-full shadow-soft text-primary hover:bg-gray-50 transition-smooth z-15">
+      <i class="fa fa-list"></i>
+    </button>
+    
+    <!-- 定位按钮 -->
+    <button id="locate-btn" class="absolute bottom-20 right-4 bg-white p-3 rounded-full shadow-soft text-primary hover:bg-gray-50 transition-smooth z-15">
+      <i class="fa fa-location-arrow"></i>
+    </button>
+    
+    <!-- 导出数据按钮 -->
+    <button id="export-data-btn" class="absolute bottom-4 right-4 bg-blue-600 text-white p-3 rounded-full shadow-soft hover:bg-blue-700 transition-smooth z-15">
+      <i class="fa fa-download"></i>
+    </button>
+    
+    <!-- 污染详情弹窗 -->
+    <div id="detail-modal" class="fixed inset-0 bg-black/50 z-50 hidden items-center justify-center p-4">
+      <div class="bg-white rounded-xl shadow-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div class="relative">
+          <img id="detail-image" src="https://picsum.photos/800/400" alt="污染现场照片" class="w-full h-64 object-cover rounded-t-xl">
+          <button id="close-modal" class="absolute top-4 right-4 bg-black/50 text-white p-2 rounded-full hover:bg-black/70 transition-smooth">
+            <i class="fa fa-times"></i>
+          </button>
+          <span id="detail-level" class="absolute bottom-4 left-4 px-3 py-1 rounded-full text-white font-medium bg-pollution-heavy">重度污染</span>
+        </div>
+        
+        <div class="p-6">
+          <h3 id="detail-title" class="text-2xl font-bold mb-2">某河流污染情况</h3>
+          <p class="text-gray-500 mb-4 flex items-center">
+            <i class="fa fa-map-marker mr-2 text-primary"></i>
+            <span id="detail-address">北京市海淀区某街道</span>
+          </p>
+          
+          <div class="mb-6">
+            <h4 class="font-semibold mb-2">污染描述</h4>
+            <p id="detail-description" class="text-gray-700">
+              该区域河水呈现深褐色，有明显异味，水面漂浮着垃圾和油污，周边居民反映已有一周左右时间。
+            </p>
+          </div>
+          
+          <div class="flex justify-between items-center text-sm text-gray-500 border-t pt-4">
+            <span><i class="fa fa-calendar mr-1"></i> 上报时间: <span id="detail-time">2023-06-15 14:30</span></span>
+            <span><i class="fa fa-user mr-1"></i> 上报人: <span id="detail-reporter">志愿者012</span></span>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- 上报污染表单 -->
+    <div id="report-modal" class="fixed inset-0 bg-black/50 z-50 hidden items-center justify-center p-4">
+      <div class="bg-white rounded-xl shadow-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div class="p-6">
+          <div class="flex justify-between items-center mb-6">
+            <h3 class="text-2xl font-bold">上报污染情况</h3>
+            <button id="close-report" class="text-gray-500 hover:text-gray-700">
+              <i class="fa fa-times text-xl"></i>
+            </button>
+          </div>
+          
+          <form id="report-form" class="space-y-6">
+            <!-- 位置信息 -->
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">位置</label>
+              <div class="relative">
+                <input type="text" id="location-input" placeholder="点击地图选择位置或手动输入" 
+                  class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none transition-smooth">
+                <button type="button" id="pick-location" class="absolute right-3 top-1/2 transform -translate-y-1/2 text-primary hover:text-primary/80">
+                  <i class="fa fa-map-marker"></i>
+                </button>
+              </div>
+            </div>
+            
+            <!-- 污染级别 -->
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-3">环境状态</label>
+              <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <label class="cursor-pointer">
+                  <input type="radio" name="pollution-level" value="beautiful" class="hidden peer">
+                  <div class="border-2 border-gray-200 peer-checked:border-green-500 rounded-lg p-4 text-center transition-smooth hover:border-gray-300">
+                    <div class="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-2">
+                      <i class="fa fa-leaf text-green-500"></i>
+                    </div>
+                    <span class="font-medium">环境优美</span>
+                  </div>
+                </label>
+                
+                <label class="cursor-pointer">
+                  <input type="radio" name="pollution-level" value="light" class="hidden peer">
+                  <div class="border-2 border-gray-200 peer-checked:border-pollution-light rounded-lg p-4 text-center transition-smooth hover:border-gray-300">
+                    <div class="w-10 h-10 bg-pollution-light/20 rounded-full flex items-center justify-center mx-auto mb-2">
+                      <i class="fa fa-exclamation text-pollution-light"></i>
+                    </div>
+                    <span class="font-medium">轻度污染</span>
+                  </div>
+                </label>
+                
+                <label class="cursor-pointer">
+                  <input type="radio" name="pollution-level" value="medium" class="hidden peer" checked>
+                  <div class="border-2 border-gray-200 peer-checked:border-pollution-medium rounded-lg p-4 text-center transition-smooth hover:border-gray-300">
+                    <div class="w-10 h-10 bg-pollution-medium/20 rounded-full flex items-center justify-center mx-auto mb-2">
+                      <i class="fa fa-exclamation-triangle text-pollution-medium"></i>
+                    </div>
+                    <span class="font-medium">中度污染</span>
+                  </div>
+                </label>
+                
+                <label class="cursor-pointer">
+                  <input type="radio" name="pollution-level" value="heavy" class="hidden peer">
+                  <div class="border-2 border-gray-200 peer-checked:border-pollution-heavy rounded-lg p-4 text-center transition-smooth hover:border-gray-300">
+                    <div class="w-10 h-10 bg-pollution-heavy/20 rounded-full flex items-center justify-center mx-auto mb-2">
+                      <i class="fa fa-ban text-pollution-heavy"></i>
+                    </div>
+                    <span class="font-medium">重度污染</span>
+                  </div>
+                </label>
+              </div>
+            </div>
+            
+            <!-- 照片上传 -->
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">上传现场照片</label>
+              <div class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-primary transition-smooth cursor-pointer" id="upload-area">
+                <input type="file" id="photo-upload" accept="image/*" class="hidden">
+                <i class="fa fa-cloud-upload text-3xl text-gray-400 mb-2"></i>
+                <p class="text-gray-500">点击或拖拽文件到此处上传</p>
+                <p class="text-xs text-gray-400 mt-1">支持 JPG、PNG 格式，最大 5MB</p>
+              </div>
+              <div id="preview-container" class="mt-3 hidden">
+                <img id="photo-preview" src="" alt="照片预览" class="max-h-48 rounded-lg">
+              </div>
+            </div>
+            
+            <!-- 描述信息 -->
+            <div>
+              <label for="description" class="block text-sm font-medium text-gray-700 mb-1">污染情况描述</label>
+              <textarea id="description" rows="4" placeholder="请描述您观察到的污染情况，如颜色、气味、是否有漂浮物等..." 
+                class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none transition-smooth"></textarea>
+            </div>
+            
+            <!-- 提交按钮 -->
+            <button type="submit" class="w-full bg-primary hover:bg-primary/90 text-white font-medium py-3 px-4 rounded-lg transition-smooth flex items-center justify-center">
+              <i class="fa fa-check-circle mr-2"></i>
+              提交污染报告
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+    
+    <!-- 加载中提示 -->
+    <div id="loading" class="fixed inset-0 bg-white/80 z-50 hidden items-center justify-center">
+      <div class="flex flex-col items-center">
+        <div class="loader w-12 h-12 rounded-full border-4 border-gray-200"></div>
+        <p class="mt-4 text-gray-600 font-medium">加载中，请稍候...</p>
+      </div>
+    </div>
+
+    <!-- 数据统计模态框 -->
+    <div id="stats-modal" class="fixed inset-0 bg-black/50 z-50 hidden items-center justify-center">
+      <div class="bg-white rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] overflow-auto">
+        <div class="flex justify-between items-center px-6 py-4 border-b">
+          <h3 class="text-xl font-bold text-primary">数据统计</h3>
+          <button id="close-stats" class="text-gray-500 hover:text-gray-700">
+            <i class="fa fa-times text-xl"></i>
+          </button>
+        </div>
+        <div class="p-6">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            <div class="bg-blue-50 p-4 rounded-lg text-center">
+              <p class="text-gray-500 text-sm">总上报数</p>
+              <p id="total-reports" class="text-4xl font-bold text-blue-600">0</p>
+            </div>
+            <div class="bg-green-50 p-4 rounded-lg text-center">
+              <p class="text-gray-500 text-sm">环境优美</p>
+              <p id="beautiful-env" class="text-4xl font-bold text-green-600">0</p>
+            </div>
+          </div>
+          
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+            <div class="bg-amber-50 p-4 rounded-lg text-center">
+              <p class="text-gray-500 text-sm">轻度污染</p>
+              <p id="light-pollution" class="text-4xl font-bold text-yellow-500">0</p>
+            </div>
+            <div class="bg-orange-50 p-4 rounded-lg text-center">
+              <p class="text-gray-500 text-sm">中度污染</p>
+              <p id="medium-pollution" class="text-4xl font-bold text-orange-500">0</p>
+            </div>
+            <div class="bg-red-50 p-4 rounded-lg text-center">
+              <p class="text-gray-500 text-sm">重度污染</p>
+              <p id="heavy-pollution" class="text-4xl font-bold text-red-500">0</p>
+            </div>
+          </div>
+
+          <!-- 数据可视化图表 -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6 mb-8">
+            <!-- 污染级别分布图表 -->
+            <div class="bg-white p-4 rounded-lg shadow">
+              <h3 class="text-lg font-medium text-gray-800 mb-4">污染级别分布</h3>
+              <div class="h-64">
+                <canvas id="pollutionLevelChart"></canvas>
+              </div>
+            </div>
+            
+            <!-- 地区分布图表 -->
+            <div class="bg-white p-4 rounded-lg shadow">
+              <h3 class="text-lg font-medium text-gray-800 mb-4">地区分布统计</h3>
+              <div class="h-64">
+                <canvas id="regionChart"></canvas>
+              </div>
+            </div>
+          </div>
+          
+          <h4 class="text-lg font-semibold mb-4">上报数据统计</h4>
+          <div id="reports-table-container" class="overflow-x-auto max-h-[40vh] overflow-y-auto">
+            <table class="min-w-full bg-white border border-gray-200 rounded-lg">
+              <thead>
+                <tr class="bg-gray-50">
+                  <th class="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">时间</th>
+                  <th class="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">地点</th>
+                  <th class="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">环境状态</th>
+                  <th class="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">上报者</th>
+                </tr>
+              </thead>
+              <tbody id="reports-table-body">
+                <tr>
+                  <td colspan="4" class="py-8 text-center text-gray-500">暂无上报数据</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- 页脚 -->
+  <footer class="bg-white border-t py-6">
+    <div class="container mx-auto px-4">
+      <div class="flex flex-col md:flex-row justify-between items-center">
+        <div class="mb-4 md:mb-0">
+          <div class="flex items-center space-x-2">
+            <i class="fa fa-tint text-primary"></i>
+            <span class="font-bold text-primary">绿水青山污水检测系统</span>
+          </div>
+          <p class="text-sm text-gray-500 mt-1">让每一滴水都得到关注</p>
+        </div>
+        
+        <div class="flex space-x-6">
+          <a href="#" class="text-gray-500 hover:text-primary transition-smooth">
+            <i class="fa fa-weixin text-xl"></i>
+          </a>
+          <a href="#" class="text-gray-500 hover:text-primary transition-smooth">
+            <i class="fa fa-weibo text-xl"></i>
+          </a>
+          <a href="#" class="text-gray-500 hover:text-primary transition-smooth">
+            <i class="fa fa-envelope text-xl"></i>
+          </a>
+        </div>
+      </div>
+      
+      <div class="mt-6 pt-6 border-t text-center text-sm text-gray-500">
+        <p>© 2023 绿水青山污水检测系统 版权所有</p>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    // 全局变量
+    let map;
+    let userMarker;
+    let pollutionMarkers = [];
+    let selectedPoint = null;
+    let currentCity = "北京市";
+    // 搜索和过滤相关变量
+    let currentFilter = 'all';
+    let currentSearchQuery = '';
+    
+    // 模拟环境数据
+    const pollutionData = [
+      // 重庆渝中区
+      {
+        id: 1,
+        title: "嘉陵江渝中段水质监测点",
+        location: {lat: 29.563, lng: 106.551},
+        address: "重庆市渝中区朝天门码头附近",
+        level: "beautiful",
+        description: "江水清澈，透明度良好，无明显异味，周边环境整洁，水质符合国家二级标准。",
+        image: "https://picsum.photos/id/1019/800/400",
+        time: "2023-06-15 08:30",
+        reporter: "环保志愿者-小王"
+      },
+      {
+        id: 2,
+        title: "鹅岭公园湖泊监测点",
+        location: {lat: 29.557, lng: 106.538},
+        address: "重庆市渝中区鹅岭公园内",
+        level: "light",
+        description: "湖泊有少量藻类生长，水面偶见漂浮物，水质基本清澈，需加强日常清理。",
+        image: "https://picsum.photos/id/1029/800/400",
+        time: "2023-06-14 14:20",
+        reporter: "环保志愿者-小李"
+      },
+      
+      // 重庆南岸区
+      {
+        id: 3,
+        title: "南滨路长江监测点",
+        location: {lat: 29.525, lng: 106.578},
+        address: "重庆市南岸区南滨路长江边",
+        level: "medium",
+        description: "江水中可见悬浮物，有轻微异味，经检测部分指标超标，需要进一步调查原因。",
+        image: "https://picsum.photos/id/1018/800/400",
+        time: "2023-06-13 11:15",
+        reporter: "环保志愿者-小张"
+      },
+      {
+        id: 4,
+        title: "南湖公园水质监测点",
+        location: {lat: 29.512, lng: 106.589},
+        address: "重庆市南岸区南湖公园内",
+        level: "beautiful",
+        description: "湖水清澈，水生植物生长良好，有鱼群活动，周边环境优美，是市民休闲好去处。",
+        image: "https://picsum.photos/id/1039/800/400",
+        time: "2023-06-12 09:40",
+        reporter: "环保志愿者-小陈"
+      },
+      
+      // 重庆江北区
+      {
+        id: 5,
+        title: "江北嘴江滩监测点",
+        location: {lat: 29.583, lng: 106.546},
+        address: "重庆市江北区江北嘴江滩公园",
+        level: "heavy",
+        description: "江水呈灰黑色，有明显刺鼻气味，江滩可见大量垃圾堆积，经检测多项指标严重超标。",
+        image: "https://picsum.photos/id/1015/800/400",
+        time: "2023-06-11 16:30",
+        reporter: "环保志愿者-老赵"
+      },
+      {
+        id: 6,
+        title: "鸿恩寺森林公园湖泊",
+        location: {lat: 29.587, lng: 106.532},
+        address: "重庆市江北区鸿恩寺森林公园内",
+        level: "light",
+        description: "湖泊水质较好，有少量落叶等自然漂浮物，无明显污染迹象，需定期清理维护。",
+        image: "https://picsum.photos/id/1025/800/400",
+        time: "2023-06-10 10:20",
+        reporter: "环保志愿者-小刘"
+      },
+      
+      // 重庆沙坪坝区
+      {
+        id: 7,
+        title: "磁器口古镇嘉陵江段",
+        location: {lat: 29.542, lng: 106.501},
+        address: "重庆市沙坪坝区磁器口古镇",
+        level: "medium",
+        description: "江水略显浑浊，有轻微异味，岸边可见少量游客丢弃的垃圾，需要加强管理。",
+        image: "https://picsum.photos/id/1035/800/400",
+        time: "2023-06-09 15:10",
+        reporter: "环保志愿者-小马"
+      },
+      {
+        id: 8,
+        title: "大学城虎溪河监测点",
+        location: {lat: 29.531, lng: 106.485},
+        address: "重庆市沙坪坝区大学城虎溪河边",
+        level: "heavy",
+        description: "河水呈暗黄色，有强烈异味，岸边有污水排放痕迹，周边居民反映严重影响生活。",
+        image: "https://picsum.photos/id/1040/800/400",
+        time: "2023-06-08 13:45",
+        reporter: "环保志愿者-小林"
+      }
+    ];
+
+    // DOM 元素
+      const mapContainer = document.getElementById('map-container');
+      const locateBtn = document.getElementById('locate-btn');
+      const exportDataBtn = document.getElementById('export-data-btn');
+      const reportBtn = document.getElementById('report-btn');
+      const reportModal = document.getElementById('report-modal');
+      const closeReport = document.getElementById('close-report');
+      const detailModal = document.getElementById('detail-modal');
+      const closeModal = document.getElementById('close-modal');
+      const togglePanel = document.getElementById('toggle-panel');
+      const infoPanel = document.getElementById('info-panel');
+      const closePanel = document.getElementById('close-panel');
+      const showPanel = document.getElementById('show-panel');
+      const pollutionList = document.getElementById('pollution-list');
+      const mobileMenuBtn = document.getElementById('mobile-menu-btn');
+      const mobileMenu = document.getElementById('mobile-menu');
+      const uploadArea = document.getElementById('upload-area');
+      const photoUpload = document.getElementById('photo-upload');
+      const photoPreview = document.getElementById('photo-preview');
+      const previewContainer = document.getElementById('preview-container');
+      const pickLocation = document.getElementById('pick-location');
+      const locationInput = document.getElementById('location-input');
+      const reportForm = document.getElementById('report-form');
+      const loading = document.getElementById('loading');
+      // 搜索和过滤元素
+      const searchInput = document.getElementById('search-input');
+      const filterAllBtn = document.getElementById('filter-all');
+      const filterBeautifulBtn = document.getElementById('filter-beautiful');
+      const filterLightBtn = document.getElementById('filter-light');
+      const filterMediumBtn = document.getElementById('filter-medium');
+      const filterHeavyBtn = document.getElementById('filter-heavy');
+      const filterButtons = [filterAllBtn, filterBeautifulBtn, filterLightBtn, filterMediumBtn, filterHeavyBtn];
+
+    // 初始化地图
+    function initMap() {
+      showLoading();
+      
+      // 初始化百度地图，中心点设为默认城市
+      map = new BMap.Map("map-container");
+      const point = new BMap.Point(106.551, 29.563); // 重庆中心点坐标（渝中区朝天门附近）
+      
+      // 响应式地图缩放级别
+      const isMobile = window.innerWidth < 768;
+      map.centerAndZoom(point, isMobile ? 10 : 12);
+      map.enableScrollWheelZoom(true); // 启用滚轮缩放
+      map.enableContinuousZoom(true); // 启用连续缩放
+      
+      // 添加地图控件（响应式调整）
+      const navigationControl = new BMap.NavigationControl({
+        anchor: BMAP_ANCHOR_TOP_LEFT,
+        type: isMobile ? BMAP_NAVIGATION_CONTROL_SMALL : BMAP_NAVIGATION_CONTROL_LARGE
+      });
+      map.addControl(navigationControl); // 缩放控件
+      
+      const scaleControl = new BMap.ScaleControl({
+        anchor: BMAP_ANCHOR_BOTTOM_LEFT
+      });
+      map.addControl(scaleControl); // 比例尺控件
+      
+      const geolocationControl = new BMap.GeolocationControl();
+      map.addControl(geolocationControl); // 定位控件
+      
+      // 加载污染点数据
+      loadPollutionPoints();
+      
+      // 定位用户位置
+      locateUser();
+      
+      // 检查是否有新上传的污染数据
+      checkForNewPollutionData();
+      
+      // 添加窗口大小变化的响应式处理
+      window.addEventListener('resize', handleResize);
+      
+      hideLoading();
+    }
+    
+    // 处理窗口大小变化
+    function handleResize() {
+      const isMobile = window.innerWidth < 768;
+      
+      // 调整地图缩放级别
+      if (map) {
+        // 防止频繁调整缩放级别
+        const currentZoom = map.getZoom();
+        const targetZoom = isMobile ? 10 : 12;
+        if (Math.abs(currentZoom - targetZoom) > 1) {
+          map.setZoom(targetZoom);
+        }
+      }
+      
+      // 响应式调整图例位置
+      const legend = document.getElementById('legend');
+      if (legend) {
+        if (isMobile) {
+          legend.classList.remove('top-[140px]');
+          legend.classList.add('top-[120px]', 'right-2');
+        } else {
+          legend.classList.remove('top-[120px]', 'right-2');
+          legend.classList.add('top-[140px]');
+        }
+      }
+      
+      // 确保在大屏幕上信息面板默认显示
+      const infoPanel = document.getElementById('info-panel');
+      const togglePanel = document.getElementById('toggle-panel');
+      const showPanel = document.getElementById('show-panel');
+      
+      if (infoPanel && togglePanel && showPanel) {
+        if (!isMobile && infoPanel.classList.contains('translate-x-full')) {
+          infoPanel.classList.remove('translate-x-full');
+          togglePanel.classList.add('hidden');
+          showPanel.classList.remove('hidden');
+        }
+      }
+    }
+
+    // 加载污染点数据
+    function loadPollutionPoints() {
+      // 应用过滤器来加载数据
+      applyFilters();
+    }
+
+    // 添加污染点标记
+    function addPollutionMarker(item) {
+      const point = new BMap.Point(item.location.lng, item.location.lat);
+      
+      // 根据环境状态设置不同颜色的圆点
+      let iconColor;
+      switch(item.level) {
+        case 'beautiful':
+          iconColor = '#10B981'; // 绿色 - 环境优美
+          break;
+        case 'light':
+          iconColor = '#FACC15'; // 黄色 - 轻度污染
+          break;
+        case 'medium':
+          iconColor = '#F97316'; // 橙色 - 中度污染
+          break;
+        case 'heavy':
+          iconColor = '#EF4444'; // 红色 - 重度污染
+          break;
+      }
+      
+      // 创建自定义圆形图标（响应式大小）
+      const createCircleIcon = function(color) {
+        const isMobile = window.innerWidth < 768;
+        const size = isMobile ? 30 : 24;
+        const radius = isMobile ? 14 : 10;
+        
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+          <circle cx="${size/2}" cy="${size/2}" r="${radius}" fill="${color}" fill-opacity="0.8" stroke="white" stroke-width="2"/>
+        </svg>`;
+        const blob = new Blob([svg], {type: 'image/svg+xml'});
+        return URL.createObjectURL(blob);
+      };
+      
+      // 创建标记并添加到地图
+      const isMobile = window.innerWidth < 768;
+      const markerSize = isMobile ? 30 : 24;
+      
+      const icon = new BMap.Icon(
+        createCircleIcon(iconColor),
+        new BMap.Size(markerSize, markerSize),
+        {
+          anchor: new BMap.Size(markerSize/2, markerSize/2)
+        }
+      );
+      
+      const marker = new BMap.Marker(point, {icon});
+      map.addOverlay(marker);
+      
+      // 存储关联数据
+      marker.pollutionData = item;
+      
+      // 添加点击事件
+      marker.addEventListener('click', function() {
+        showPollutionDetail(this.pollutionData);
+      });
+      
+      pollutionMarkers.push(marker);
+    }
+
+    // 添加污染点列表项
+    function addPollutionListItem(item) {
+      // 支持所有污染级别，包括环境优美
+      const levelClass = {
+        'beautiful': 'bg-green-100 text-green-800',
+        'light': 'bg-yellow-100 text-yellow-800',
+        'medium': 'bg-orange-100 text-orange-800',
+        'heavy': 'bg-red-100 text-red-800'
+      };
+      
+      const levelText = {
+        'beautiful': '环境优美',
+        'light': '轻度污染',
+        'medium': '中度污染',
+        'heavy': '重度污染'
+      };
+      
+      // 响应式样式调整
+      const isMobile = window.innerWidth < 768;
+      const baseClasses = 'border border-gray-100 rounded-lg hover:shadow-md transition-smooth cursor-pointer';
+      const paddingClasses = isMobile ? 'p-2' : 'p-3';
+      
+      const listItem = document.createElement('div');
+      listItem.className = `${baseClasses} ${paddingClasses}`;
+      
+      // 响应式字体大小和间距
+      const titleFontSize = isMobile ? 'text-sm' : 'font-medium';
+      const addressFontSize = isMobile ? 'text-xs' : 'text-sm';
+      const timeFontSize = isMobile ? 'text-[10px]' : 'text-xs';
+      const badgeSize = isMobile ? 'text-[10px] px-1.5 py-0.5' : 'text-xs px-2 py-1';
+      
+      listItem.innerHTML = `
+        <div class="flex justify-between items-start">
+          <h4 class="${titleFontSize}">${item.title}</h4>
+          <span class="${badgeSize} rounded-full ${levelClass[item.level] || 'bg-gray-100 text-gray-800'}">${levelText[item.level] || item.level}</span>
+        </div>
+        <p class="${addressFontSize} text-gray-500 mt-1 line-clamp-1">${item.address}</p>
+        <p class="${timeFontSize} text-gray-400 mt-2">${item.time}</p>
+      `;
+      
+      listItem.addEventListener('click', () => {
+        // 显示详情
+        showPollutionDetail(item);
+        // 移动地图到该点
+        map.panTo(new BMap.Point(item.location.lng, item.location.lat));
+      });
+      
+      pollutionList.appendChild(listItem);
+    }
+
+    // 显示污染点详情
+    function showPollutionDetail(data) {
+      document.getElementById('detail-title').textContent = data.title;
+      document.getElementById('detail-address').textContent = data.address;
+      document.getElementById('detail-description').textContent = data.description;
+      document.getElementById('detail-image').src = data.image;
+      document.getElementById('detail-image').alt = data.title;
+      document.getElementById('detail-time').textContent = data.time;
+      document.getElementById('detail-reporter').textContent = data.reporter;
+      
+      // 确保处理所有污染级别
+      const levelText = {
+        'beautiful': '环境优美',
+        'light': '轻度污染',
+        'medium': '中度污染',
+        'heavy': '重度污染'
+      };
+      const levelColor = {
+        'beautiful': 'bg-green-500',
+        'light': 'bg-yellow-400',
+        'medium': 'bg-orange-500',
+        'heavy': 'bg-red-500'
+      };
+      
+      // 设置污染级别标签
+      const levelEl = document.getElementById('detail-level');
+      levelEl.textContent = levelText[data.level] || data.level;
+      levelEl.className = `absolute bottom-4 left-4 px-3 py-1 rounded-full text-white font-medium ${levelColor[data.level] || 'bg-gray-500'}`;
+      
+      // 响应式弹窗样式调整
+      const isMobile = window.innerWidth < 768;
+      const modalContent = detailModal.querySelector('.modal-content');
+      
+      if (modalContent) {
+        if (isMobile) {
+          modalContent.classList.add('max-w-[90vw]', 'max-h-[90vh]');
+          modalContent.classList.remove('max-w-2xl');
+        } else {
+          modalContent.classList.remove('max-w-[90vw]', 'max-h-[90vh]');
+          modalContent.classList.add('max-w-2xl');
+        }
+      }
+      
+      // 显示弹窗
+      detailModal.style.display = 'flex';
+      document.body.style.overflow = 'hidden';
+    }
+
+    // 定位用户位置
+    function locateUser() {
+      const geolocation = new BMap.Geolocation();
+      geolocation.getCurrentPosition(function(r) {
+        if (this.getStatus() === BMAP_STATUS_SUCCESS) {
+          // 移除旧的用户标记
+          if (userMarker) {
+            map.removeOverlay(userMarker);
+          }
+          
+          // 创建用户位置标记 - 黄色五角星（响应式大小）
+          const createStarIcon = function() {
+            const isMobile = window.innerWidth < 768;
+            const size = isMobile ? 36 : 30;
+            
+            const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24">
+              <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" fill="#FFD700" stroke="#FFA500" stroke-width="1"/>
+            </svg>`;
+            const blob = new Blob([svg], {type: 'image/svg+xml'});
+            return URL.createObjectURL(blob);
+          };
+          
+          const isMobile = window.innerWidth < 768;
+          const starSize = isMobile ? 36 : 30;
+          
+          const userIcon = new BMap.Icon(
+            createStarIcon(),
+            new BMap.Size(starSize, starSize),
+            {
+              anchor: new BMap.Size(starSize/2, starSize/2)
+            }
+          );
+          
+          userMarker = new BMap.Marker(r.point, {icon: userIcon});
+          map.addOverlay(userMarker);
+          
+          // 移动地图到用户位置
+          map.panTo(r.point);
+          
+          // 获取用户所在城市
+          const geoc = new BMap.Geocoder();
+          geoc.getLocation(r.point, function(rs) {
+            const addComp = rs.addressComponents;
+            currentCity = addComp.city;
+          });
+        } else {
+          alert('无法获取您的位置信息，请允许位置权限或手动浏览地图');
+        }
+      }, {enableHighAccuracy: true});
+    }
+
+    // 显示/隐藏信息面板
+    function toggleInfoPanel() {
+      const isMobile = window.innerWidth < 768;
+      
+      // 在移动设备上通过translate控制显隐
+      if (isMobile) {
+        if (infoPanel.classList.contains('translate-x-full')) {
+          infoPanel.classList.remove('translate-x-full');
+          togglePanel.classList.add('hidden');
+          showPanel.classList.remove('hidden');
+        } else {
+          infoPanel.classList.add('translate-x-full');
+          togglePanel.classList.remove('hidden');
+          showPanel.classList.add('hidden');
+        }
+      } else {
+        // 在桌面设备上通过宽度控制显隐
+        if (infoPanel.classList.contains('w-0')) {
+          infoPanel.classList.remove('w-0');
+          infoPanel.classList.add('w-96');
+          togglePanel.classList.add('hidden');
+          showPanel.classList.remove('hidden');
+        } else {
+          infoPanel.classList.add('w-0');
+          infoPanel.classList.remove('w-96');
+          togglePanel.classList.remove('hidden');
+          showPanel.classList.add('hidden');
+        }
+      }
+    }
+
+    // 显示加载状态
+    function showLoading() {
+      loading.style.display = 'flex';
+      document.body.style.overflow = 'hidden';
+    }
+    
+    // 隐藏加载状态
+      function hideLoading() {
+        loading.style.display = 'none';
+        document.body.style.overflow = '';
+      }
+      
+      // 检查并加载本地存储的新污染数据
+      function checkForNewPollutionData() {
+        try {
+          const newData = localStorage.getItem('newPollutionData');
+          if (newData) {
+            const pollutionData = JSON.parse(newData);
+            
+            // 如果数据有效，添加到污染数据列表中
+            if (pollutionData && pollutionData.location && pollutionData.location.lat && pollutionData.location.lng) {
+              // 检查是否已存在相同ID的数据
+              const existingIndex = window.pollutionData.findIndex(item => item.id === pollutionData.id);
+              if (existingIndex === -1) {
+                window.pollutionData.unshift(pollutionData);
+                console.log('已添加新的污染数据:', pollutionData);
+                
+                // 移动地图到新添加的位置
+                const newPoint = new BMap.Point(pollutionData.location.lng, pollutionData.location.lat);
+                map.centerAndZoom(newPoint, 15);
+                
+                // 显示提示信息
+                alert('已成功加载您上传的污染报告！\n\n位置：' + pollutionData.address);
+              }
+            }
+            
+            // 清除本地存储中的数据
+            localStorage.removeItem('newPollutionData');
+          }
+        } catch (error) {
+          console.error('检查新污染数据时出错:', error);
+        }
+      }
+      
+      // 导出数据为CSV格式
+      function exportDataAsCSV() {
+        // 获取当前过滤后的数据
+        const filteredReports = pollutionData.filter(report => {
+          const matchesFilter = currentFilter === 'all' || report.level === currentFilter;
+          const matchesSearch = !currentSearchQuery || 
+            report.title.toLowerCase().includes(currentSearchQuery.toLowerCase()) ||
+            report.address.toLowerCase().includes(currentSearchQuery.toLowerCase()) ||
+            report.description.toLowerCase().includes(currentSearchQuery.toLowerCase());
+          return matchesFilter && matchesSearch;
+        });
+        
+        if (filteredReports.length === 0) {
+          alert('没有可导出的数据');
+          return;
+        }
+        
+        // 创建CSV内容
+        let csvContent = '\uFEFF'; // 添加BOM以确保Excel正确识别UTF-8编码
+        csvContent += '标题,地址,污染级别,描述,上报人,上报时间,经度,纬度\n';
+        
+        filteredReports.forEach(report => {
+          const levelText = getLevelText(report.level);
+          const csvLine = [
+            `"${report.title}"`,
+            `"${report.address}"`,
+            `"${levelText}"`,
+            `"${report.description}"`,
+            `"${report.reporter}"`,
+            `"${report.time}"`,
+            report.location.lng,
+            report.location.lat
+          ].join(',');
+          csvContent += csvLine + '\n';
+        });
+        
+        // 创建下载链接
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        
+        // 设置文件名
+        const today = new Date();
+        const dateStr = today.getFullYear() + '-' + 
+                       String(today.getMonth() + 1).padStart(2, '0') + '-' + 
+                       String(today.getDate()).padStart(2, '0');
+        const filename = `污染监测数据_${dateStr}.csv`;
+        
+        link.setAttribute('href', url);
+        link.setAttribute('download', filename);
+        link.style.visibility = 'hidden';
+        
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        // 显示导出成功消息
+        showToast('数据导出成功！');
+      }
+      
+      // 获取污染级别文本
+      function getLevelText(level) {
+        switch(level) {
+          case 'beautiful': return '环境优美';
+          case 'light': return '轻度污染';
+          case 'medium': return '中度污染';
+          case 'heavy': return '重度污染';
+          default: return '未知';
+        }
+      }
+      
+      // 显示提示消息
+      function showToast(message) {
+        // 检查是否已存在toast元素
+        let toast = document.getElementById('toast-message');
+        if (!toast) {
+          toast = document.createElement('div');
+          toast.id = 'toast-message';
+          toast.className = 'fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-4 py-2 rounded-lg shadow-lg z-50 transition-all duration-300 opacity-0';
+          document.body.appendChild(toast);
+        }
+        
+        toast.textContent = message;
+        toast.style.opacity = '1';
+        
+        // 3秒后自动隐藏
+        setTimeout(() => {
+          toast.style.opacity = '0';
+        }, 3000);
+      }
+    
+    // 应用搜索和过滤
+    function applyFilters() {
+      // 清空现有标记
+      pollutionMarkers.forEach(marker => {
+        map.removeOverlay(marker);
+      });
+      pollutionMarkers = [];
+      
+      // 清空列表
+      pollutionList.innerHTML = '';
+      
+      // 根据当前过滤和搜索条件显示标记和列表项
+      const filteredReports = pollutionData.filter(report => {
+        // 检查污染级别过滤
+        const matchesFilter = currentFilter === 'all' || report.level === currentFilter;
+        
+        // 检查搜索条件
+        const matchesSearch = !currentSearchQuery || 
+          report.title.toLowerCase().includes(currentSearchQuery.toLowerCase()) ||
+          report.address.toLowerCase().includes(currentSearchQuery.toLowerCase()) ||
+          report.description.toLowerCase().includes(currentSearchQuery.toLowerCase());
+          
+        return matchesFilter && matchesSearch;
+      });
+      
+      // 为过滤后的报告添加标记和列表项
+      if (filteredReports.length === 0) {
+        pollutionList.innerHTML = '<div class="text-center text-gray-500 py-4">没有找到匹配的污染点</div>';
+      } else {
+        filteredReports.forEach(report => {
+          addPollutionMarker(report);
+          addPollutionListItem(report);
+        });
+      }
+    }
+    
+    // 设置活动的过滤按钮样式
+    function setActiveFilterButton(buttonId) {
+      // 重置所有按钮样式
+      filterAllBtn.className = 'px-3 py-2 rounded-lg bg-gray-100 text-gray-800 transition-smooth hover:bg-gray-200';
+      filterBeautifulBtn.className = 'px-3 py-2 rounded-lg bg-green-100 text-green-800 transition-smooth hover:bg-green-200';
+      filterLightBtn.className = 'px-3 py-2 rounded-lg bg-yellow-100 text-yellow-800 transition-smooth hover:bg-yellow-200';
+      filterMediumBtn.className = 'px-3 py-2 rounded-lg bg-orange-100 text-orange-800 transition-smooth hover:bg-orange-200';
+      filterHeavyBtn.className = 'px-3 py-2 rounded-lg bg-red-100 text-red-800 transition-smooth hover:bg-red-200';
+      
+      // 设置活动按钮样式
+      const activeButton = document.getElementById(buttonId);
+      if (activeButton === filterAllBtn) {
+        activeButton.className = 'px-3 py-2 rounded-lg bg-primary text-white transition-smooth hover:bg-primary/90';
+      } else if (activeButton === filterBeautifulBtn) {
+        activeButton.className = 'px-3 py-2 rounded-lg bg-green-600 text-white transition-smooth hover:bg-green-700';
+      } else if (activeButton === filterLightBtn) {
+        activeButton.className = 'px-3 py-2 rounded-lg bg-yellow-600 text-white transition-smooth hover:bg-yellow-700';
+      } else if (activeButton === filterMediumBtn) {
+        activeButton.className = 'px-3 py-2 rounded-lg bg-orange-600 text-white transition-smooth hover:bg-orange-700';
+      } else if (activeButton === filterHeavyBtn) {
+        activeButton.className = 'px-3 py-2 rounded-lg bg-red-600 text-white transition-smooth hover:bg-red-700';
+      }
+    }
+
+    // 事件监听器
+    document.addEventListener('DOMContentLoaded', function() {
+      // 初始化地图
+      initMap();
+      
+      // 添加搜索功能
+      searchInput.addEventListener('input', function(e) {
+        currentSearchQuery = e.target.value;
+        applyFilters();
+      });
+      
+      // 添加过滤功能
+      filterAllBtn.addEventListener('click', function() {
+        currentFilter = 'all';
+        setActiveFilterButton('filter-all');
+        applyFilters();
+      });
+      
+      filterBeautifulBtn.addEventListener('click', function() {
+        currentFilter = 'beautiful';
+        setActiveFilterButton('filter-beautiful');
+        applyFilters();
+      });
+      
+      filterLightBtn.addEventListener('click', function() {
+        currentFilter = 'light';
+        setActiveFilterButton('filter-light');
+        applyFilters();
+      });
+      
+      filterMediumBtn.addEventListener('click', function() {
+        currentFilter = 'medium';
+        setActiveFilterButton('filter-medium');
+        applyFilters();
+      });
+      
+      filterHeavyBtn.addEventListener('click', function() {
+          currentFilter = 'heavy';
+          setActiveFilterButton('filter-heavy');
+          applyFilters();
+        });
+        
+        // 导出数据功能
+        exportDataBtn.addEventListener('click', function() {
+          exportDataAsCSV();
+        });
+      
+      // 定位按钮点击事件
+      locateBtn.addEventListener('click', function() {
+        showLoading();
+        setTimeout(() => {
+          locateUser();
+          hideLoading();
+        }, 500);
+      });
+      
+      // 上报按钮点击事件
+      reportBtn.addEventListener('click', function() {
+        reportModal.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+      });
+      
+      // 关闭上报弹窗
+      closeReport.addEventListener('click', function() {
+        reportModal.style.display = 'none';
+        document.body.style.overflow = '';
+      });
+      
+      // 关闭详情弹窗
+      closeModal.addEventListener('click', function() {
+        detailModal.style.display = 'none';
+        document.body.style.overflow = '';
+      });
+      
+      // 切换信息面板
+      togglePanel.addEventListener('click', toggleInfoPanel);
+      closePanel.addEventListener('click', toggleInfoPanel);
+      showPanel.addEventListener('click', toggleInfoPanel);
+      
+      // 移动端菜单切换
+      mobileMenuBtn.addEventListener('click', function() {
+        mobileMenu.classList.toggle('hidden');
+      });
+
+      // 数据统计链接点击事件
+      const statsLinks = document.querySelectorAll('a[href="#stats"]');
+      const statsModal = document.getElementById('stats-modal');
+      const closeStats = document.getElementById('close-stats');
+      
+      statsLinks.forEach(link => {
+        link.addEventListener('click', function(e) {
+          e.preventDefault();
+          try {
+            showStats();
+            statsModal.style.display = 'flex';
+            document.body.style.overflow = 'hidden';
+          } catch (error) {
+            console.error('数据统计功能执行错误:', error);
+            alert('数据统计功能加载失败，请刷新页面重试。');
+          }
+        });
+      });
+      
+      // 关闭统计弹窗
+      closeStats.addEventListener('click', function() {
+        statsModal.style.display = 'none';
+        document.body.style.overflow = '';
+      });
+      
+      // 点击统计弹窗外部关闭
+      statsModal.addEventListener('click', function(e) {
+        if (e.target === statsModal) {
+          statsModal.style.display = 'none';
+          document.body.style.overflow = '';
+        }
+      });
+      
+      // 为统计弹窗添加ESC键关闭功能
+      document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && statsModal.style.display === 'flex') {
+          statsModal.style.display = 'none';
+          document.body.style.overflow = '';
+        }
+      });
+      
+      // 照片上传区域点击事件
+      uploadArea.addEventListener('click', function() {
+        photoUpload.click();
+      });
+      
+      // 照片选择事件
+      photoUpload.addEventListener('change', function(e) {
+        if (e.target.files && e.target.files[0]) {
+          const reader = new FileReader();
+          reader.onload = function(e) {
+            photoPreview.src = e.target.result;
+            previewContainer.classList.remove('hidden');
+          }
+          reader.readAsDataURL(e.target.files[0]);
+        }
+      });
+      
+      // 拖拽上传
+      uploadArea.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        uploadArea.classList.add('border-primary');
+      });
+      
+      uploadArea.addEventListener('dragleave', function() {
+        uploadArea.classList.remove('border-primary');
+      });
+      
+      uploadArea.addEventListener('drop', function(e) {
+        e.preventDefault();
+        uploadArea.classList.remove('border-primary');
+        
+        if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+          const reader = new FileReader();
+          reader.onload = function(e) {
+            photoPreview.src = e.target.result;
+            previewContainer.classList.remove('hidden');
+          }
+          reader.readAsDataURL(e.dataTransfer.files[0]);
+          photoUpload.files = e.dataTransfer.files;
+        }
+      });
+      
+      // 选择地图位置
+      pickLocation.addEventListener('click', function() {
+        // 关闭上报弹窗
+        reportModal.style.display = 'none';
+        
+        // 提示用户在地图上点击选择位置
+        alert('请在地图上点击您发现污染的位置');
+        
+        // 添加地图点击事件监听
+        map.addEventListener('click', onMapClickForLocation);
+      });
+      
+      // 表单提交事件
+      reportForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        if (!selectedPoint) {
+          alert('请选择污染位置');
+          return;
+        }
+        
+        if (!photoUpload.files || photoUpload.files.length === 0) {
+          alert('请上传现场照片');
+          return;
+        }
+        
+        const level = document.querySelector('input[name="pollution-level"]:checked').value;
+        const description = document.getElementById('description').value;
+        
+        if (!description) {
+          alert('请描述污染情况');
+          return;
+        }
+        
+        // 显示加载状态
+        showLoading();
+        
+        // 模拟提交成功
+        setTimeout(() => {
+          // 创建新的污染点数据
+          const newPollution = {
+            id: pollutionData.length + 1,
+            title: level === 'beautiful' ? `${currentCity}环境优美区域` : `${currentCity}新发现污染点`,
+            location: {
+              lat: selectedPoint.lat,
+              lng: selectedPoint.lng
+            },
+            address: locationInput.value || `${currentCity}未知位置`,
+            level: level,
+            description: description,
+            image: photoPreview.src || "https://picsum.photos/800/400",
+            time: new Date().toLocaleString('zh-CN', {
+              year: 'numeric',
+              month: '2-digit',
+              day: '2-digit',
+              hour: '2-digit',
+              minute: '2-digit'
+            }).replace(/\//g, '-'),
+            reporter: "匿名志愿者"
+          };
+          
+          // 添加到数据列表
+          pollutionData.unshift(newPollution);
+          
+          // 重新加载污染点
+          loadPollutionPoints();
+          
+          // 隐藏弹窗和加载状态
+          reportModal.style.display = 'none';
+          hideLoading();
+          
+          // 重置表单
+          reportForm.reset();
+          previewContainer.classList.add('hidden');
+          selectedPoint = null;
+          
+          // 提示成功
+          alert('感谢您的上报，您的贡献将帮助改善环境！');
+        }, 1500);
+      });
+      
+      // 点击弹窗外部关闭
+      detailModal.addEventListener('click', function(e) {
+        if (e.target === detailModal) {
+          detailModal.style.display = 'none';
+          document.body.style.overflow = '';
+        }
+      });
+      
+      reportModal.addEventListener('click', function(e) {
+        if (e.target === reportModal) {
+          reportModal.style.display = 'none';
+          document.body.style.overflow = '';
+        }
+      });
+    });
+    
+    // 显示统计数据
+    function showStats() {
+      try {
+        // 确保污染数据数组存在
+        if (!window.pollutionData || !Array.isArray(window.pollutionData)) {
+          console.warn('污染数据不存在，使用模拟数据');
+          window.pollutionData = [
+            {
+              id: 1,
+              title: "奥林匹克公园湖泊",
+              location: {lat: 39.999, lng: 116.399},
+              address: "北京市朝阳区奥林匹克公园内",
+              level: "beautiful",
+              description: "湖水清澈见底，周边环境优美，植被茂盛，水质达标，适合休闲散步。",
+              image: "https://picsum.photos/id/1019/800/400",
+              time: "2023-06-15 08:30",
+              reporter: "环保志愿者-小张"
+            },
+            {
+              id: 2,
+              title: "清河沿岸污染",
+              location: {lat: 39.992, lng: 116.337},
+              address: "北京市海淀区清河沿岸",
+              level: "medium",
+              description: "河水呈淡黄色，有轻微异味，水面有少量漂浮物，需要关注。",
+              image: "https://picsum.photos/id/1015/800/400",
+              time: "2023-06-14 14:20",
+              reporter: "环保志愿者-小李"
+            }
+          ];
+        }
+        
+        const pollutionData = window.pollutionData;
+        
+        // 计算统计数据
+        const totalReports = pollutionData.length;
+        const beautifulEnv = pollutionData.filter(item => item.level === 'beautiful').length;
+        const lightPollution = pollutionData.filter(item => item.level === 'light').length;
+        const mediumPollution = pollutionData.filter(item => item.level === 'medium').length;
+        const heavyPollution = pollutionData.filter(item => item.level === 'heavy').length;
+        
+        // 更新统计数字，添加元素存在性检查
+        const statsElements = {
+          'total-reports': totalReports,
+          'beautiful-env': beautifulEnv,
+          'light-pollution': lightPollution,
+          'medium-pollution': mediumPollution,
+          'heavy-pollution': heavyPollution
+        };
+        
+        Object.keys(statsElements).forEach(key => {
+          const element = document.getElementById(key);
+          if (element) {
+            element.textContent = statsElements[key];
+          }
+        });
+        
+        // 更新数据统计表格
+        const reportsTableBody = document.getElementById('reports-table-body');
+        if (reportsTableBody) {
+          reportsTableBody.innerHTML = '';
+          
+          if (totalReports === 0) {
+            reportsTableBody.innerHTML = '<tr><td colspan="4" class="py-8 text-center text-gray-500">暂无上报数据</td></tr>';
+          } else {
+            // 显示所有数据，按时间倒序排列
+            // 先排序数据（如果有多个数据的话）
+            const sortedData = [...pollutionData].sort((a, b) => {
+              return new Date(b.time) - new Date(a.time);
+            });
+            
+            sortedData.forEach(item => {
+              // 根据环境状态设置颜色和文本
+              let statusColor, statusText;
+              switch(item.level) {
+                case 'beautiful':
+                  statusColor = 'bg-green-100 text-green-800';
+                  statusText = '环境优美';
+                  break;
+                case 'light':
+                  statusColor = 'bg-yellow-100 text-yellow-800';
+                  statusText = '轻度污染';
+                  break;
+                case 'medium':
+                  statusColor = 'bg-orange-100 text-orange-800';
+                  statusText = '中度污染';
+                  break;
+                case 'heavy':
+                  statusColor = 'bg-red-100 text-red-800';
+                  statusText = '重度污染';
+                  break;
+                default:
+                  statusColor = 'bg-gray-100 text-gray-800';
+                  statusText = '未知状态';
+              }
+              
+              const row = document.createElement('tr');
+              row.className = 'hover:bg-gray-50 transition-colors';
+              row.innerHTML = `
+                <td class="py-3 px-4 border-b text-sm">${item.time || '-'}</td>
+                <td class="py-3 px-4 border-b text-sm">${item.address || '-'}</td>
+                <td class="py-3 px-4 border-b text-sm">
+                  <span class="${statusColor} inline-block text-xs px-2 py-1 rounded">${statusText}</span>
+                </td>
+                <td class="py-3 px-4 border-b text-sm">${item.reporter || '匿名'}</td>
+              `;
+              
+              reportsTableBody.appendChild(row);
+            });
+          }
+        }
+        
+        // 初始化或更新污染级别分布图表，添加错误处理
+        try {
+          const levelChartElement = document.getElementById('pollutionLevelChart');
+          if (levelChartElement) {
+            const levelCtx = levelChartElement.getContext('2d');
+            
+            // 销毁旧图表
+            if (window.pollutionLevelChart) {
+              window.pollutionLevelChart.destroy();
+            }
+            
+            // 创建新图表
+            window.pollutionLevelChart = new Chart(levelCtx, {
+              type: 'doughnut',
+              data: {
+                labels: ['环境优美', '轻度污染', '中度污染', '重度污染'],
+                datasets: [{
+                  data: [beautifulEnv, lightPollution, mediumPollution, heavyPollution],
+                  backgroundColor: ['#10B981', '#FBBF24', '#F97316', '#EF4444'],
+                  borderColor: ['#FFFFFF', '#FFFFFF', '#FFFFFF', '#FFFFFF'],
+                  borderWidth: 2
+                }]
+              },
+              options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                  legend: {
+                    position: 'bottom',
+                    labels: {
+                      padding: 20,
+                      font: {
+                        size: 12
+                      }
+                    }
+                  },
+                  title: {
+                    display: false
+                  }
+                },
+                cutout: '60%'
+              }
+            });
+          }
+        } catch (chartError) {
+          console.error('污染级别分布图表创建失败:', chartError);
+        }
+        
+        // 计算地区分布数据并创建图表，添加错误处理
+        try {
+          const regionChartElement = document.getElementById('regionChart');
+          if (regionChartElement) {
+            // 计算地区分布数据
+            const regionData = {};
+            pollutionData.forEach(item => {
+              // 从地址中提取城市名称，添加容错处理
+              let region = '其他';
+              if (item.address && typeof item.address === 'string') {
+                const cityMatch = item.address.match(/([^省]+?市)/);
+                if (cityMatch && cityMatch[1]) {
+                  region = cityMatch[1];
+                }
+              }
+              
+              if (regionData[region]) {
+                regionData[region]++;
+              } else {
+                regionData[region] = 1;
+              }
+            });
+            
+            // 转换为图表所需格式
+            const regionLabels = Object.keys(regionData);
+            const regionValues = Object.values(regionData);
+            
+            // 颜色数组
+            const colors = ['#3B82F6', '#EC4899', '#8B5CF6', '#F59E0B', '#14B8A6', '#6366F1', '#EF4444', '#10B981'];
+            
+            const regionCtx = regionChartElement.getContext('2d');
+            
+            // 销毁旧图表
+            if (window.regionChart) {
+              window.regionChart.destroy();
+            }
+            
+            // 创建新图表
+            window.regionChart = new Chart(regionCtx, {
+              type: 'bar',
+              data: {
+                labels: regionLabels,
+                datasets: [{
+                  label: '上报数量',
+                  data: regionValues,
+                  backgroundColor: colors.slice(0, regionLabels.length),
+                  borderRadius: 6
+                }]
+              },
+              options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                  legend: {
+                    display: false
+                  }
+                },
+                scales: {
+                  y: {
+                    beginAtZero: true,
+                    ticks: {
+                      stepSize: 1
+                    }
+                  },
+                  x: {
+                    ticks: {
+                      font: {
+                        size: 11
+                      }
+                    }
+                  }
+                }
+              }
+            });
+          }
+        } catch (regionChartError) {
+          console.error('地区分布图表创建失败:', regionChartError);
+        }
+        
+        // 确保统计弹窗正确显示
+        const statsModal = document.getElementById('stats-modal');
+        if (statsModal) {
+          statsModal.style.display = 'flex';
+          document.body.style.overflow = 'hidden';
+        }
+      } catch (error) {
+        console.error('数据统计功能执行错误:', error);
+        alert('数据统计功能加载失败，请刷新页面重试。\n错误信息：' + error.message);
+      }
+    }
+    
+    // 地图点击选择位置的处理函数
+    function onMapClickForLocation(e) {
+      // 记录选择的点
+      selectedPoint = {
+        lat: e.point.lat,
+        lng: e.point.lng
+      };
+      
+      // 获取地址信息
+      const geoc = new BMap.Geocoder();
+      geoc.getLocation(e.point, function(rs) {
+        const addComp = rs.addressComponents;
+        const address = `${addComp.province}${addComp.city}${addComp.district}${addComp.street}${addComp.streetNumber}`;
+        locationInput.value = address;
+        
+        // 重新显示上报弹窗
+        reportModal.style.display = 'flex';
+        
+        // 移除地图点击事件监听
+        map.removeEventListener('click', onMapClickForLocation);
+      });
+    }
+  </script>
+</body>
+</html>
